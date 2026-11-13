@@ -604,6 +604,7 @@ struct hashtable {
 	uint32_t ihashhashempty;
 	uint32_t ihashempty;
 	uint32_t entropy;
+	int mutex_ready;	/* hash_mutex is initialized; it is never destroyed again */
 };
 
 struct srvparam {
@@ -801,6 +802,13 @@ struct clientparam {
 	   member is only reached once every weighted one is in here. */
 	struct chain *failedparents[MAXFAILEDPARENTS];
 	int nfailedparents;
+	/* The concurrent-connection limits this connection was counted in, so
+	   the same ones are released when it ends, whatever was changed
+	   meanwhile. Valid only while connlimver equals conf.connlimver: a
+	   reload frees the entries. Added last for plugins built against an
+	   older header. */
+	struct connlim **connlims;
+	unsigned nconnlims, connlimver;
 };
 
 struct filemon {
@@ -852,6 +860,8 @@ struct extparam {
 	time_t logtime, time;
 	unsigned logdumpsrv, logdumpcli;
 	char delimchar;
+	/* changed whenever connlimiter is replaced, under connlim_mutex */
+	int connlimver;
 };
 
 struct property {

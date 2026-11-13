@@ -345,9 +345,25 @@ int getopts(const char *s, struct sockoptset *opts){
 
 void setopts(SOCKET s, const struct sockoptset *opts){
 	int i, value;
+	int family = AF_UNSPEC;
 
+	if(!opts->set) return;
+	{
+		struct sockaddr_storage ss;
+		SASIZETYPE sl = sizeof(ss);
+
+		memset(&ss, 0, sizeof(ss));
+		if(getsockname(s, (struct sockaddr *)&ss, &sl) == 0) family = ss.ss_family;
+	}
 	for(i = 0; sockopts[i].optname && i < MAXSOCKOPTS; i++){
 		if(!(opts->set & (1u << i))) continue;
+		/* An option of one IP version is refused by a socket of the other
+		   (Linux alone takes the IPv4 ones on an IPv6 socket), so it is not
+		   tried. */
+		if(family == AF_INET && sockopts[i].level == IPPROTO_IPV6) continue;
+#ifndef __linux__
+		if(family == AF_INET6 && sockopts[i].level == IPPROTO_IP) continue;
+#endif
 		value = opts->value[i];
 #ifdef TCP_MAXSEG
 		if(sockopts[i].opt == TCP_MAXSEG && sockopts[i].level == IPPROTO_TCP){
@@ -589,13 +605,13 @@ static int srvprepare(struct srvstart *s, int argc, char **argv){
 #ifndef NOIPV6
 				PROXYSOCKADDRTYPE sa6;
 				memset(&sa6, 0, sizeof(sa6));
-				error = !getip46(46, (unsigned char *)argv[i]+2, (struct sockaddr *)&sa6);
-				if(!error) {
+				if(!getip46(46, (unsigned char *)argv[i]+2, (struct sockaddr *)&sa6)) error = 1;
+				else {
 					if (*SAFAMILY(&sa6)==AF_INET) srv->extsa = sa6;
 					else srv->extsa6 = sa6;
 				}
 #else
-				error = !getip46(46, (unsigned char *)argv[i]+2, (struct sockaddr *)&srv->extsa);
+				if(!getip46(46, (unsigned char *)argv[i]+2, (struct sockaddr *)&srv->extsa)) error = 1;
 #endif
 			}
 			break;
@@ -737,19 +753,19 @@ static int srvprepare(struct srvstart *s, int argc, char **argv){
 		 case 'o':
 			switch(argv[i][2]){
 			 case 's':
-				error = getopts(argv[i]+3, &srv->srvsockopts);
+				if(getopts(argv[i]+3, &srv->srvsockopts)) error = 1;
 				break;
 			 case 'c':
-				error = getopts(argv[i]+3, &srv->clisockopts);
+				if(getopts(argv[i]+3, &srv->clisockopts)) error = 1;
 				break;
 			 case 'l':
-				error = getopts(argv[i]+3, &srv->lissockopts);
+				if(getopts(argv[i]+3, &srv->lissockopts)) error = 1;
 				break;
 			 case 'r':
-				error = getopts(argv[i]+3, &srv->cbcsockopts);
+				if(getopts(argv[i]+3, &srv->cbcsockopts)) error = 1;
 				break;
 			 case 'R':
-				error = getopts(argv[i]+3, &srv->cbssockopts);
+				if(getopts(argv[i]+3, &srv->cbssockopts)) error = 1;
 				break;
 			 default:
 				error = 1;

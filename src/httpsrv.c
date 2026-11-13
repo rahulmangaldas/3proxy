@@ -603,20 +603,25 @@ static int sendfilecontent(struct httpreq *r, int fd, uint64_t size)
 		while(sent < size){
 			uint64_t left = size - sent;
 			ssize_t n = -1;
+			int sferr = 0;
 
 			if(left > HTTPSRV_SENDMAX) left = HTTPSRV_SENDMAX;
 #if defined(__linux__)
 			off_t off = (off_t)sent;
 
 			n = sendfile(param->clisock, fd, &off, (size_t)left);
+			if(n < 0) sferr = errno;
 #elif defined(__APPLE__)
 			off_t len = (off_t)left;
 
-			if(!sendfile(fd, param->clisock, (off_t)sent, &len, NULL, 0) || errno == EAGAIN)
-				n = (ssize_t)len;
+			/* len is what went out also when the call stopped short (EAGAIN, EINTR);
+			   it is counted either way, or what is read in its place starts at the
+			   wrong place and sends part of the file twice. */
+			if(sendfile(fd, param->clisock, (off_t)sent, &len, NULL, 0)) sferr = errno;
+			if(!sferr || sferr == EAGAIN || sferr == EINTR) n = (ssize_t)len;
 #elif defined(__FreeBSD__)
 			off_t written = 0;
-			int sfres, sferr;
+			int sfres;
 
 			sfres = sendfile(fd, param->clisock, (off_t)sent, (size_t)left,
 					NULL, &written, 0);
@@ -626,8 +631,13 @@ static int sendfilecontent(struct httpreq *r, int fd, uint64_t size)
 			   either way, or what is read in its place starts at the wrong place
 			   and sends part of the file twice. */
 			if(!sfres || sferr == EAGAIN || sferr == EINTR) n = (ssize_t)written;
-			if(n == 0 && sferr == EINTR) continue;
-			if(n == 0 && sferr == EAGAIN){
+#endif
+			if(n > 0){
+				sent += (uint64_t)n;
+				continue;
+			}
+			if(n <= 0 && sferr == EINTR) continue;
+			if(n <= 0 && sferr == EAGAIN){
 				/* Nothing fitted: wait for room and go on with the kernel,
 				   rather than copy the rest of the file through this process. */
 				struct pollfd pfd;
@@ -638,9 +648,7 @@ static int sendfilecontent(struct httpreq *r, int fd, uint64_t size)
 				if(param->srv->so._poll(param->sostate, &pfd, 1, (int)conf.timeouts[STRING_S] * 1000) <= 0) break;
 				continue;
 			}
-#endif
-			if(n <= 0) break;	/* whatever the reason, read it instead */
-			sent += (uint64_t)n;
+			break;	/* whatever the reason, read it instead */
 		}
 		if(sent >= size) return 0;
 	}

@@ -8,19 +8,39 @@
 
 #include "proxy.h"
 
+/* Remember that param is counted in ce, to release it from the same entry
+   later. */
+static int connlimremember(struct clientparam *param, struct connlim *ce){
+	if(!(param->nconnlims & 3)){
+		struct connlim **n = realloc(param->connlims, ((size_t)param->nconnlims + 4) * sizeof(struct connlim *));
+
+		if(!n) return 1;
+		param->connlims = n;
+	}
+	param->connlims[param->nconnlims++] = ce;
+	return 0;
+}
+
 int startconnlims (struct clientparam *param){
 	struct connlim * ce;
 	time_t delta;
 	uint64_t rating;
 	int ret = 0;
+	unsigned i;
 
 	param->connlim = 1;
+	param->nconnlims = 0;
 	_3proxy_mutex_lock(&connlim_mutex);
+	param->connlimver = (unsigned)conf.connlimver;
 	for(ce = conf.connlimiter; ce; ce = ce->next) {
 		if(ACLmatches(ce->ace, param)){
 			if(ce->ace->action == NOCONNLIM)break;
 			if(!ce->period){
 				if(ce->rate <= ce->rating) {
+					ret = 1;
+					break;
+				}
+				if(connlimremember(param, ce)){
 					ret = 1;
 					break;
 				}
@@ -43,32 +63,37 @@ int startconnlims (struct clientparam *param){
 		}
 	}
 	if(ret) {
-		struct connlim * cee;
-		for(cee = conf.connlimiter; cee != ce; cee = cee->next) {
-			if(ACLmatches(cee->ace, param) && !cee->period && cee->rating) {
-				cee->rating--;
-			}
+		for(i = 0; i < param->nconnlims; i++){
+			if(param->connlims[i]->rating) param->connlims[i]->rating--;
 		}
+		param->nconnlims = 0;
 		param->connlim = 0;
 	}
 	_3proxy_mutex_unlock(&connlim_mutex);
+	if(ret && param->connlims){
+		free(param->connlims);
+		param->connlims = NULL;
+	}
 	return ret;
 }
 
 void stopconnlims (struct clientparam *param){
-	struct connlim * ce;
+	unsigned i;
 
-	_3proxy_mutex_lock(&connlim_mutex);
-	for(ce = conf.connlimiter; ce; ce = ce->next) {
-		if(ACLmatches(ce->ace, param)){
-			if(ce->ace->action == NOCONNLIM)break;
-			if(!ce->period && ce->rating){
-				ce->rating--;
-				continue;
+	if(param->connlims){
+		_3proxy_mutex_lock(&connlim_mutex);
+		/* The entries are gone with a reload, and so are the counts */
+		if(param->connlimver == (unsigned)conf.connlimver){
+			for(i = 0; i < param->nconnlims; i++){
+				if(param->connlims[i]->rating) param->connlims[i]->rating--;
 			}
 		}
+		_3proxy_mutex_unlock(&connlim_mutex);
+		free(param->connlims);
+		param->connlims = NULL;
 	}
-	_3proxy_mutex_unlock(&connlim_mutex);
+	param->nconnlims = 0;
+	param->connlim = 0;
 }
 
 void initbandlims (struct clientparam *param){
@@ -108,22 +133,24 @@ unsigned bandlimitfunc(struct clientparam *param, unsigned nbytesin, unsigned nb
 	unsigned msec;
 	unsigned now;
 	int i;
-
 #ifdef _WIN32
 	struct timeb tb;
+#else
+	struct timeval tv;
+#endif
 
+	if(!nbytesin && !nbytesout) return 0;
+#ifdef _WIN32
 	ftime(&tb);
 	sec = (unsigned)tb.time;
 	msec = (unsigned)tb.millitm*1000;
 #else
-	struct timeval tv;
 	gettimeofday(&tv, NULL);
 
 	sec = tv.tv_sec;
 	msec = tv.tv_usec;
 #endif
 
-	if(!nbytesin && !nbytesout) return 0;
 	_3proxy_mutex_lock(&bandlim_mutex);
 	if(param->bandlimver != conf.bandlimver){
 		initbandlims(param);

@@ -46,6 +46,7 @@ static int transparent_mode = TRANSPARENT_AUTO;
 
 #ifdef WITH_PF
 static int pf_device = -1;
+static int pf_open_reported = 0;
 
 /* /dev/pf can only be opened by root on FreeBSD (and so pfSense), and the
    first redirected connection comes after setuid and chroot have taken that
@@ -61,6 +62,13 @@ static void transparent_pf_open(void)
 		| O_CLOEXEC
 #endif
 	);
+	/* Said once, at install: a connection does not retry the open (see
+	   transparent_pf()), so without this nothing would say why pf looks
+	   up nothing. */
+	if(pf_device < 0 && !pf_open_reported){
+		pf_open_reported = 1;
+		fprintf(stderr, "transparent: cannot open /dev/pf: %s\n", strerror(errno));
+	}
 }
 
 /* Ask the packet filter what the connection was addressed to before it was
@@ -71,9 +79,9 @@ static int transparent_pf(struct clientparam *param)
 {
 	struct pfioc_natlook nl;
 
-	/* Normally already open: see transparent_pf_open(). This is only a
-	   retry for a device that was not there at start. */
-	if(pf_device < 0) transparent_pf_open();
+	/* Opened by transparent_pf_open() at install. Not retried here: that
+	   would run open() for every connection, and two threads doing it
+	   together would leak a descriptor. A reload tries again. */
 	if(pf_device < 0) return 1;
 	memset(&nl, 0, sizeof(nl));
 	nl.proto = IPPROTO_TCP;

@@ -1,5 +1,12 @@
 3proxy-1.0.3 Released November, 7 2026
 
+! Fix: a service option which failed (-ni/-ne off Linux, a bad -e address or -o* list) was forgotten when a later option of the same service was valid, and the service started anyway.
+! Fix: connection limits (connlim): a connection is released from the limits it was counted in, not from those its user and addresses match when it ends, so counts no longer drift when they differ or the configuration was reloaded meanwhile.
+! Fix: password list and cache tables: a configuration reload no longer destroys the table's mutex under a connection using it, and every lookup checks the table again under the lock.
+! Fix: HTTP server on macOS and Linux: sendfile() stopped by EINTR or a full socket buffer no longer drops to the slow copy (macOS sent part of the file twice); it waits for room and goes on.
+! Fix: Windows and macOS: an outgoing connection is bound again before connect(), as before; skipping bind() is for FreeBSD only.
+! Fix: transparent pf: a failure to open /dev/pf is reported once at start, and no longer retried by every connection.
+! Fix: -os socket options of the wrong IP version for the socket are skipped, not tried.
 ! Fix: RADIUS authentication: the reply digest copied the shared secret right after the received bytes, so a reply of 4100 bytes with a secret of 17 or more characters wrote up to 47 bytes of it past the reply buffer on the stack, before the reply was authenticated; the digest is hashed over the reply and the secret in place now, with nothing written past the reply, and a reply is taken only from the address and port of the server the request went to, with the request's identifier and length, which was never checked before
 ! Fix: the PTR answer of a name server could write past the answer buffer on the stack: the label walk ran to the end of the whole message instead of the end of the record's data and could take a compression pointer for a label length (an answer of 3841 bytes or more reached past the buffer itself); the walk now stops at the end of the record's data, and a compressed, empty or truncated name is not accepted
 ! Fix: every connection matching a pcre: (or regex:) rule matched on the one match data block of the rule, which pcre2_match() writes into: two connections matching at the same time raced and corrupted memory, bringing the process down under load; a connection now makes a match data block of its own

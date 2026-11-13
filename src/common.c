@@ -811,7 +811,7 @@ int doconnect(struct clientparam * param){
 #ifdef WITH_UN
 	if(*SAFAMILY(&param->sinsl) != AF_UNIX)
 #endif
-#ifndef IP_BIND_ADDRESS_NO_PORT
+#if !defined(IP_BIND_ADDRESS_NO_PORT) && defined(__FreeBSD__)
 	/* Without that option (FreeBSD has none) a bind() to port 0 takes a
 	   port of its own before the destination is known, and the number of
 	   connections in use or in TIME_WAIT, to any destination, is limited by

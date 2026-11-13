@@ -1084,7 +1084,8 @@ for(;;){
  }
  }
 #ifdef PROXY_TCP_CORK
- {
+ /* only a request to a parent proxy was held back above */
+ if(redirect){
 	int opt = 0;
 	param->srv->so._setsockopt(param->sostate, param->remsock, IPPROTO_TCP, PROXY_TCP_CORK, (unsigned char *)&opt, sizeof(int));
  }

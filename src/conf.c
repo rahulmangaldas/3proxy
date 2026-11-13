@@ -2388,6 +2388,7 @@ void freeconf(struct extparam *confp){
  _3proxy_mutex_lock(&connlim_mutex);
  cl = confp->connlimiter;
  confp->connlimiter = NULL;
+ confp->connlimver++;
  _3proxy_mutex_unlock(&connlim_mutex);
 
  destroyhashtable(&pwl_table);

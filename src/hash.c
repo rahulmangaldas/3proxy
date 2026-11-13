@@ -9,7 +9,10 @@ struct hashentry {
 
 
 void destroyhashtable(struct hashtable *ht){
-    if(!ht->ihashtable) return;
+    /* The mutex stays: a connection thread may be waiting on it while a
+       reload empties the table, and a destroyed mutex cannot be waited on.
+       Every user checks the table again under the lock. */
+    if(!ht->mutex_ready) return;
     _3proxy_mutex_lock(&ht->hash_mutex);
     if(ht->ihashtable){
 	free(ht->ihashtable);
@@ -27,7 +30,6 @@ void destroyhashtable(struct hashtable *ht){
     ht->tablesize = 0;
     ht->ihashempty = 0;
     _3proxy_mutex_unlock(&ht->hash_mutex);
-    _3proxy_mutex_destroy(&ht->hash_mutex);
 }
 
 #define hashindex(ht, tablesize, hash) (murmurhash3(hash, ht->hash_size, ht->entropy) % tablesize)
@@ -49,27 +51,25 @@ int inithashtable(struct hashtable *ht, unsigned tablesize, unsigned poolsize, u
 #endif
 
     if(tablesize < 2 || poolsize < tablesize || growlimit < poolsize) return 1;
-    if(ht->ihashtable){
-        _3proxy_mutex_lock(&ht->hash_mutex);
-	if(ht->ihashtable){
-	    free(ht->ihashtable);
-	    ht->ihashtable = NULL;
-	}
-	if(ht->hashvalues){
-	    free(ht->hashvalues);
-	    ht->hashvalues = NULL;
-	}
-	if(ht->hashhashvalues){
-	    free(ht->hashhashvalues);
-	    ht->hashhashvalues = NULL;
-	}
-	ht->poolsize = 0;
-	ht->tablesize = 0;
-    }
-    else {
+    if(!ht->mutex_ready){
 	_3proxy_mutex_init(&ht->hash_mutex);
-        _3proxy_mutex_lock(&ht->hash_mutex);
+	ht->mutex_ready = 1;
     }
+    _3proxy_mutex_lock(&ht->hash_mutex);
+    if(ht->ihashtable){
+	free(ht->ihashtable);
+	ht->ihashtable = NULL;
+    }
+    if(ht->hashvalues){
+	free(ht->hashvalues);
+	ht->hashvalues = NULL;
+    }
+    if(ht->hashhashvalues){
+	free(ht->hashhashvalues);
+	ht->hashhashvalues = NULL;
+    }
+    ht->poolsize = 0;
+    ht->tablesize = 0;
     if(!(ht->ihashtable = malloc((size_t)tablesize *  sizeof(uint32_t)))
     || !(ht->hashvalues = malloc((size_t)poolsize * (sizeof(struct hashentry) + ht->recsize - 4)))
     || !(ht->hashhashvalues = malloc((size_t)poolsize * ht->hash_size))
@@ -78,6 +78,8 @@ int inithashtable(struct hashtable *ht, unsigned tablesize, unsigned poolsize, u
 	ht->ihashtable = NULL;
 	free(ht->hashvalues);
 	ht->hashvalues = NULL;
+	free(ht->hashhashvalues);
+	ht->hashhashvalues = NULL;
 	_3proxy_mutex_unlock(&ht->hash_mutex);
 	return 3;
     }
@@ -171,12 +173,16 @@ void hashadd(struct hashtable *ht, void* name, void* value, time_t expires){
     uint32_t index;
     uint32_t last = 0;
     
-    if(!ht||!value||!name||!ht->ihashtable) {
+    if(!ht||!value||!name||!ht->mutex_ready) {
 	return;
     }
 
     ht->index2hash_add(ht, name, hash);
     _3proxy_mutex_lock(&ht->hash_mutex);
+    if(!ht->ihashtable){
+	_3proxy_mutex_unlock(&ht->hash_mutex);
+	return;
+    }
     index = hashindex(ht, ht->tablesize, hash);
 
     for(hep = ht->ihashtable + index; (he = *hep)!=0; ){
@@ -221,11 +227,15 @@ int hashresolv(struct hashtable *ht, void* name, void* value, uint32_t *ttl){
     uint32_t he;
     uint32_t index;
 
-    if(!ht || !ht->ihashtable || !name) {
+    if(!ht || !ht->mutex_ready || !name) {
 	return 0;
     }
     ht->index2hash_search(ht,name, hash);
     _3proxy_mutex_lock(&ht->hash_mutex);
+    if(!ht->ihashtable){
+	_3proxy_mutex_unlock(&ht->hash_mutex);
+	return 0;
+    }
     index = hashindex(ht, ht->tablesize, hash);
     for(hep = ht->ihashtable + index; (he = *hep)!=0; ){
 	if(hvalue(ht, he)->expires < conf.time) {
@@ -252,11 +262,15 @@ void hashdelete(struct hashtable *ht, void *name){
     uint32_t he;
     uint32_t index;
 
-    if(!ht || !ht->ihashtable || !name) {
+    if(!ht || !ht->mutex_ready || !name) {
 	return;
     }
     ht->index2hash_search(ht, name, hash);
     _3proxy_mutex_lock(&ht->hash_mutex);
+    if(!ht->ihashtable){
+	_3proxy_mutex_unlock(&ht->hash_mutex);
+	return;
+    }
     index = hashindex(ht, ht->tablesize, hash);
     for(hep = ht->ihashtable + index; (he = *hep) != 0; ){
 	if((hvalue(ht, he)->expires && hvalue(ht, he)->expires < conf.time) || !memcmp(hash, hhash(ht, he), ht->hash_size)) {
