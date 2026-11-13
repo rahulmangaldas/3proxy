@@ -508,6 +508,7 @@ extern int nradservers;
 extern struct socketoptions {
 	int opt;
 	char * optname;
+	int level;	/* IPPROTO_TCP, IPPROTO_IP, IPPROTO_IPV6 or SOL_SOCKET */
 } sockopts[];
 int getopts(const char *s, struct sockoptset *opts);
 void setopts(SOCKET s, const struct sockoptset *opts);

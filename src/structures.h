@@ -190,13 +190,18 @@ int
 #define SAISNULL(sa) ( UN_SAISNULL(sa) ((struct sockaddr_in *)sa)->sin_addr.s_addr == 0) 
 #endif
 
+/* PROXYSOCKADDRFAMILY names the family member, to set it in an initializer: on
+   the BSDs the first member is the length, not the family. */
 #ifdef WITH_UN
 #define PROXYSOCKADDRTYPE struct sockaddr_storage
+#define PROXYSOCKADDRFAMILY ss_family
 #else
 #ifndef NOIPV6
 #define PROXYSOCKADDRTYPE struct sockaddr_in6
+#define PROXYSOCKADDRFAMILY sin6_family
 #else
 #define PROXYSOCKADDRTYPE struct sockaddr_in
+#define PROXYSOCKADDRFAMILY sin_family
 #endif
 #endif
 

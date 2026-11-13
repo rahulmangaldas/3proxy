@@ -226,12 +226,12 @@ struct extparam conf = {
 	.countertype = NONE,
 	.counterfile = NULL,
 #ifndef NOIPV6
-	.intsa = {AF_INET},
-	.extsa6 = {AF_INET6},
-	.extsa = {AF_INET},
+	.intsa = {.PROXYSOCKADDRFAMILY = AF_INET},
+	.extsa6 = {.PROXYSOCKADDRFAMILY = AF_INET6},
+	.extsa = {.PROXYSOCKADDRFAMILY = AF_INET},
 #else
-	.intsa = {AF_INET},
-	.extsa = {AF_INET},
+	.intsa = {.PROXYSOCKADDRFAMILY = AF_INET},
+	.extsa = {.PROXYSOCKADDRFAMILY = AF_INET},
 #endif
 	.pwl = NULL,
 	.authenticate = NULL,

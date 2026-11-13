@@ -616,10 +616,28 @@ static int sendfilecontent(struct httpreq *r, int fd, uint64_t size)
 				n = (ssize_t)len;
 #elif defined(__FreeBSD__)
 			off_t written = 0;
+			int sfres, sferr;
 
-			if(!sendfile(fd, param->clisock, (off_t)sent, (size_t)left,
-					NULL, &written, 0) || errno == EAGAIN)
-				n = (ssize_t)written;
+			sfres = sendfile(fd, param->clisock, (off_t)sent, (size_t)left,
+					NULL, &written, 0);
+			sferr = sfres? errno : 0;
+			/* written is what went out also when the call stopped short: with
+			   EAGAIN, the socket buffer being full, and with EINTR. It is counted
+			   either way, or what is read in its place starts at the wrong place
+			   and sends part of the file twice. */
+			if(!sfres || sferr == EAGAIN || sferr == EINTR) n = (ssize_t)written;
+			if(n == 0 && sferr == EINTR) continue;
+			if(n == 0 && sferr == EAGAIN){
+				/* Nothing fitted: wait for room and go on with the kernel,
+				   rather than copy the rest of the file through this process. */
+				struct pollfd pfd;
+
+				memset(&pfd, 0, sizeof(pfd));
+				pfd.fd = param->clisock;
+				pfd.events = POLLOUT;
+				if(param->srv->so._poll(param->sostate, &pfd, 1, (int)conf.timeouts[STRING_S] * 1000) <= 0) break;
+				continue;
+			}
 #endif
 			if(n <= 0) break;	/* whatever the reason, read it instead */
 			sent += (uint64_t)n;

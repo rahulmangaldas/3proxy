@@ -167,55 +167,67 @@ void * threadfunc (void *p) {
 
 struct socketoptions sockopts[] = {
 #ifdef TCP_NODELAY
-	{TCP_NODELAY, "TCP_NODELAY"},
+	{TCP_NODELAY, "TCP_NODELAY", IPPROTO_TCP},
 #endif
 #ifdef TCP_CORK
-	{TCP_CORK, "TCP_CORK"},
+	{TCP_CORK, "TCP_CORK", IPPROTO_TCP},
 #endif
 #ifdef TCP_NOPUSH
-	{TCP_NOPUSH, "TCP_NOPUSH"},
+	{TCP_NOPUSH, "TCP_NOPUSH", IPPROTO_TCP},
 #endif
 #ifdef TCP_DEFER_ACCEPT
-	{TCP_DEFER_ACCEPT, "TCP_DEFER_ACCEPT"},
+	{TCP_DEFER_ACCEPT, "TCP_DEFER_ACCEPT", IPPROTO_TCP},
 #endif
 #ifdef TCP_QUICKACK
-	{TCP_QUICKACK, "TCP_QUICKACK"},
+	{TCP_QUICKACK, "TCP_QUICKACK", IPPROTO_TCP},
 #endif
 #ifdef TCP_TIMESTAMPS
-	{TCP_TIMESTAMPS, "TCP_TIMESTAMPS"},
+	{TCP_TIMESTAMPS, "TCP_TIMESTAMPS", IPPROTO_TCP},
 #endif
 #ifdef SO_REUSEADDR
-	{SO_REUSEADDR, "SO_REUSEADDR"},
+	{SO_REUSEADDR, "SO_REUSEADDR", SOL_SOCKET},
 #endif
 #ifdef SO_REUSEPORT
-	{SO_REUSEPORT, "SO_REUSEPORT"},
+	{SO_REUSEPORT, "SO_REUSEPORT", SOL_SOCKET},
 #endif
 #ifdef SO_EXCLUSIVEADDRUSE
-	{SO_EXCLUSIVEADDRUSE, "SO_EXCLUSIVEADDRUSE"},
+	{SO_EXCLUSIVEADDRUSE, "SO_EXCLUSIVEADDRUSE", SOL_SOCKET},
 #endif
 #ifdef SO_PORT_SCALABILITY
-	{SO_PORT_SCALABILITY, "SO_PORT_SCALABILITY"},
+	{SO_PORT_SCALABILITY, "SO_PORT_SCALABILITY", SOL_SOCKET},
 #endif
 #ifdef SO_REUSE_UNICASTPORT
-	{SO_REUSE_UNICASTPORT, "SO_REUSE_UNICASTPORT"},
+	{SO_REUSE_UNICASTPORT, "SO_REUSE_UNICASTPORT", SOL_SOCKET},
 #endif
 #ifdef SO_KEEPALIVE
-	{SO_KEEPALIVE, "SO_KEEPALIVE"},
+	{SO_KEEPALIVE, "SO_KEEPALIVE", SOL_SOCKET},
 #endif
 #ifdef SO_DONTROUTE
-	{SO_DONTROUTE, "SO_DONTROUTE"},
+	{SO_DONTROUTE, "SO_DONTROUTE", SOL_SOCKET},
 #endif
 #ifdef IP_TRANSPARENT
-	{IP_TRANSPARENT, "IP_TRANSPARENT"},
+	{IP_TRANSPARENT, "IP_TRANSPARENT", IPPROTO_IP},
 #endif
 #ifdef TCP_FASTOPEN
-	{TCP_FASTOPEN, "TCP_FASTOPEN"},
+	{TCP_FASTOPEN, "TCP_FASTOPEN", IPPROTO_TCP},
 #endif
 #ifdef TCP_FASTOPEN_CONNECT
-	{TCP_FASTOPEN_CONNECT, "TCP_FASTOPEN_CONNECT"},
+	{TCP_FASTOPEN_CONNECT, "TCP_FASTOPEN_CONNECT", IPPROTO_TCP},
 #endif
 #ifdef TCP_MAXSEG
-	{TCP_MAXSEG, "TCP_MAXSEG"},
+	{TCP_MAXSEG, "TCP_MAXSEG", IPPROTO_TCP},
+#endif
+#if !defined(NOIPV6) && defined(IPV6_V6ONLY)
+	{IPV6_V6ONLY, "IPV6_V6ONLY", IPPROTO_IPV6},
+#endif
+#ifdef IP_BINDANY
+	{IP_BINDANY, "IP_BINDANY", IPPROTO_IP},
+#endif
+#if !defined(NOIPV6) && defined(IPV6_BINDANY)
+	{IPV6_BINDANY, "IPV6_BINDANY", IPPROTO_IPV6},
+#endif
+#ifdef SO_REUSEPORT_LB
+	{SO_REUSEPORT_LB, "SO_REUSEPORT_LB", SOL_SOCKET},
 #endif
 	{0, NULL}
 };
@@ -338,16 +350,12 @@ void setopts(SOCKET s, const struct sockoptset *opts){
 		if(!(opts->set & (1u << i))) continue;
 		value = opts->value[i];
 #ifdef TCP_MAXSEG
-		if(sockopts[i].opt == TCP_MAXSEG && *sockopts[i].optname == 'T'){
+		if(sockopts[i].opt == TCP_MAXSEG && sockopts[i].level == IPPROTO_TCP){
 		    if(!value) value = conf.maxseg;
 		    if(!value) continue;
 		}
 #endif
-		setsockopt(s, *sockopts[i].optname == 'T'? IPPROTO_TCP:
-#ifdef SOL_IP
-			*sockopts[i].optname == 'I'? SOL_IP: 
-#endif
-			SOL_SOCKET, sockopts[i].opt, (char *)&value, sizeof(value));
+		setsockopt(s, sockopts[i].level, sockopts[i].opt, (char *)&value, sizeof(value));
 	}
 }
 
@@ -600,6 +608,10 @@ static int srvprepare(struct srvstart *s, int argc, char **argv){
 #ifdef __linux__
 			if(argv[i][2] == 'i') { if(srv->inetns) free(srv->inetns); srv->inetns = strdup(argv[i] + 3); }
 			else if(argv[i][2] == 'e') { if(srv->onetns) free(srv->onetns); srv->onetns = strdup(argv[i] + 3); }
+#else
+			/* Network namespaces are a Linux feature. Ignoring the option would run
+			   the service in the host's network stack without a word. */
+			error = 1;
 #endif
 			break;
 		 case 'p':
