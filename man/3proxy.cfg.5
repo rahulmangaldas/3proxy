@@ -102,7 +102,7 @@ service is \fBtlspr\fR speaking POP3 to negotiate STARTTLS, under this name.
 IMAPv4 proxy (default port 143), or \fBtlspr\fR speaking IMAP, as above.
 .br
 .B smtpp
-SMTP proxy (default port 25), or \fBtlspr\fR speaking SMTP, as above.
+SMTP proxy (default port 587), or \fBtlspr\fR speaking SMTP, as above.
 .br
 .B ftppr
 FTP proxy (default port 21), in a build with FTP support. Without it the
@@ -165,7 +165,7 @@ syntax.
 bind internal (\fB-Di\fR) / external (\fB-De\fR) interface to given INTERFACE (e.g. eth0) if \fBSO_BINDTODEVICE\fR is supported by the system. You may need to run as root or have \fBCAP_NET_RAW\fR capability in order to bind to an interface, depending on the system, so this option may require root privileges and can be incompatible with some configuration commands like \fBchroot\fR and \fBsetuid\fR (and \fBdaemon\fR if setcap is used).
 .br
 .B -ni\fIPATH\fB, -ne\fIPATH\fR
-(Linux only) Switch to the network namespace identified by the filesystem path \fIPATH\fR (e.g. \fI/var/run/netns/myns\fR or \fI/proc/PID/ns/net\fR) for the listening socket (\fB-ni\fR) or for outgoing connections (\fB-ne\fR).
+(Linux only, an error on other systems) Switch to the network namespace identified by the filesystem path \fIPATH\fR (e.g. \fI/var/run/netns/myns\fR or \fI/proc/PID/ns/net\fR) for the listening socket (\fB-ni\fR) or for outgoing connections (\fB-ne\fR).
 With \fB-ni\fR the current namespace is saved before opening the listening socket and restored immediately after binding, so that the rest of the process (outgoing connections, child threads) runs in the original namespace unless \fB-ne\fR is also given.
 With \fB-ne\fR the process switches to the specified namespace after the listening socket is bound (and after restoring from \fB-ni\fR if applicable).
 Requires \fBCAP_SYS_ADMIN\fR (or \fBCAP_NET_ADMIN\fR on recent kernels) and is incompatible with \fBchroot\fR/\fBsetuid\fR/\fBdaemon\fR if privileges are dropped before the switch takes effect.
@@ -175,6 +175,22 @@ Requires \fBCAP_SYS_ADMIN\fR (or \fBCAP_NET_ADMIN\fR on recent kernels) and is i
 .br
 .B -Ni
 (for socks) Internal NAT address (between client and 3proxy) to report to client for UDPASSOC. By default internal address is reported. It's only useful in the case of IP-IP NAT (will not work for PAT).
+.br
+.B -f\fIFORMAT\fR
+Log format of this service, in the syntax of \fBlogformat\fR. Without it the service uses
+the \fBlogformat\fR in effect where the service is declared.
+.br
+.B -F\fIIP\fR
+(for dnspr) Answer every A request with the IPv4 address \fIIP\fR, and every AAAA request
+with the IPv6 address \fIIP\fR, instead of resolving the name. Give \fB-F\fR twice, once
+with each kind of address, to answer both.
+.br
+.B -T
+(for proxy) Transparent mode, for a service whose clients do not know it is a proxy, e.g. behind
+a redirection. \fBProxy-Authorization\fR sent by the client is not interpreted, \fBProxy-\fR headers
+and the connection headers of the server's reply are passed on unchanged, and the \fBHost\fR
+header of a request is not compared with the destination chosen for the connection. A request
+with a path only, and no host in its URL, is handled as a transparent one with or without \fB-T\fR.
 .br
 .B -R\fIHOST\fB:\fIport\fR
 listen on given local HOST:port for incoming connections instead of making remote outgoing connection. Can be used with another 3proxy service running -r option for connect back functionality. Most commonly used with tcppm. HOST can be given as IP or hostname, useful in case of dynamic DNS.

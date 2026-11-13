@@ -6,6 +6,9 @@ def run(t):
         return
     srv = t.free_port()
     srv2 = t.free_port()
+    # the one rule which needs PCRE: without it the rest of the case still runs
+    legacy_rule = ('http rewrite_host "pcre:^legacy-(.*)$" ** "$1.new.example"'
+                   if t.has("pcre") else "")
     t.start("httpsrv_rules", f"""
         log
         auth iponly
@@ -20,7 +23,7 @@ def run(t):
         http echo * /only-first
 
         http rewrite_host *.old.example ** "$1.new.example"
-        http rewrite_host "pcre:^legacy-(.*)$" ** "$1.new.example"
+        {legacy_rule}
         http rewrite_host * /badhost** "not a host name"
         http echo one.new.example /**
         httpsrv -p{srv}
@@ -90,8 +93,11 @@ def run(t):
     t.eq(200, r.status, "a rewritten host reaches the rules after it")
     t.contains(r, "host=one.new.example", "and the request carries the new name")
 
-    t.eq(200, t.http(url + "/anything", headers={"Host": "legacy-one"}).status,
-         "a regular expression names the part to keep")
+    if t.has("pcre"):
+        t.eq(200, t.http(url + "/anything", headers={"Host": "legacy-one"}).status,
+             "a regular expression names the part to keep")
+    else:
+        t.skip("a regular expression names the part to keep (built without: pcre)")
 
     t.eq(404, t.http(url + "/anything", headers={"Host": "other.example"}).status,
          "a host no rule rewrites is left as it was")

@@ -23,6 +23,9 @@ def run(t):
         fp.write(b"RIFF-pretend")
 
     port = t.free_port()
+    # the one rule which needs PCRE: without it the rest of the case still runs
+    pic_rule = ('http cache * "pcre:^/(.*)/pic/(.*)\\.(gif|jpeg)$" "%s/picts/$1/$2.$3"' % root
+                if t.has("pcre") else "")
     t.start("httpsrv_files", f"""
         log
         auth iponly
@@ -31,7 +34,7 @@ def run(t):
         http file  * /w/*.html "{root}/$1.html"
         http file  * /big       {root}/big.bin
         http cache * /c/*.html  "{root}/$1.html"
-        http cache * "pcre:^/(.*)/pic/(.*)\\.(gif|jpeg)$" "{root}/picts/$1/$2.$3"
+        {pic_rule}
         http redir * /old/**    301 "https://example.org/$1"
         http redir * /moved     /w/a.html
         http file  * /rel/*.html "web/$1.html"
@@ -89,10 +92,13 @@ def run(t):
                "a file replaced on disk is read again")
 
     # --- what the stars stand for -----------------------------------------
-    r = t.http(url + "/set/pic/dog.gif")
-    t.eq(200, r.status, "a regular expression maps a request onto a path")
-    t.contains(r, "GIF89a", "and the file is served")
-    t.eq("image/gif", r.header("Content-Type"), "with the type of that name")
+    if t.has("pcre"):
+        r = t.http(url + "/set/pic/dog.gif")
+        t.eq(200, r.status, "a regular expression maps a request onto a path")
+        t.contains(r, "GIF89a", "and the file is served")
+        t.eq("image/gif", r.header("Content-Type"), "with the type of that name")
+    else:
+        t.skip("a regular expression maps a request onto a path (built without: pcre)")
 
     # --- redir ------------------------------------------------------------
     r = t.http(url + "/old/thing")

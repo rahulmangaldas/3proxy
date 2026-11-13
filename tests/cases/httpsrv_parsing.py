@@ -70,12 +70,15 @@ def run(t):
     # argument holding one is quoted. Two dollars stand for one, which is how
     # a dollar reaches a rule as text.
     dsrv = t.free_port()
+    # the one rule which needs PCRE: without it the rest of the case still runs
+    re_rule = ('http redir * "pcre:^/re/([a-z]+)$" 302 "http://example.org/re/$1"'
+               if t.has("pcre") else "")
     t.start("httpsrv_dollar", f"""
         log
         auth iponly
         allow *
         http redir * /old** 301 "http://example.org/x$$y/$1"
-        http redir * "pcre:^/re/([a-z]+)$" 302 "http://example.org/re/$1"
+        {re_rule}
         http echo * /**
         httpsrv -p{dsrv}
     """, ports=[dsrv])
@@ -85,7 +88,10 @@ def run(t):
     t.eq(301, r.status, "a rule holding a doubled dollar loads")
     t.eq("http://example.org/x$y//a", r.header("Location"),
          "and two dollars reach the location as one")
-    t.eq(302, t.http(durl + "/re/abc").status,
-         "a quoted regular expression keeps its anchor")
-    t.eq(200, t.http(durl + "/re/ab9").status,
-         "and the anchor is real: what it excludes falls through")
+    if t.has("pcre"):
+        t.eq(302, t.http(durl + "/re/abc").status,
+             "a quoted regular expression keeps its anchor")
+        t.eq(200, t.http(durl + "/re/ab9").status,
+             "and the anchor is real: what it excludes falls through")
+    else:
+        t.skip("a quoted regular expression keeps its anchor (built without: pcre)")

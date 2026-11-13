@@ -1135,7 +1135,7 @@ static int h_http(int argc, unsigned char **argv){
 	rule->maxage = -1;
 
 	if(parsepattern(&rule->host, argv[2]) || parsepathpattern(&rule->url, argv[3])){
-		fprintf(stderr, "No memory for http rule, line %d\n", linenum);
+		fprintf(stderr, "Bad pattern in http rule, line %d\n", linenum);
 		free(rule->host.name);
 		free(rule);
 		return(21);
@@ -1350,7 +1350,7 @@ struct ace * make_ace (int argc, unsigned char ** argv){
 				}
 				memset(hostnamel, 0, sizeof(struct hostname));
 				if(parsepattern(hostnamel, arg)) {
-					fprintf(stderr, "No memory for ACL entry, line %d\n", linenum);
+					fprintf(stderr, "Bad host pattern in ACL entry, line %d\n", linenum);
 					return(NULL);
 				}
 			 }

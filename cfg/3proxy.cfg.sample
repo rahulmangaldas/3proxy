@@ -188,7 +188,7 @@ deny * * 127.0.0.1,192.168.1.1
 # and allow HTTP and HTTPS traffic.
 allow * * * 80-88,8080-8088 HTTP
 allow * * * 443,8443 HTTPS
-proxy -n
+proxy
 
 flush
 allow 3APA3A,test
