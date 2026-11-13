@@ -47,8 +47,8 @@ jobs:
        cp -f doc/html/man8/udppm.8.html         wiki/udppm.md
        cp -f doc/html/man5/3proxy.cfg.5.html    wiki/3proxy.cfg.md
        cp -f doc/html/highload.html             wiki/High-Load.md
-       cp -f doc/html/howtoe.html               wiki/How-To.md
-       cp -f doc/html/howtor.html               "wiki/How-To-(русский).md"
+       cp -f doc/html/howto.en.html             wiki/How-To.md
+       cp -f doc/html/howto.ru.html             "wiki/How-To-(русский).md"
        cp -f doc/html/securityen.html           wiki/Security-recommendations.md
        cp -f doc/html/devel/devref.html         wiki/DevelopeReference.md
        cp -f doc/html/plugins/TransparentPlugin.html          wiki/TransparentPlugin.md

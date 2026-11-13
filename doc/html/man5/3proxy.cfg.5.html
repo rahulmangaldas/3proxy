@@ -120,7 +120,7 @@ has one: otherwise the service is <b>tlspr</b> speaking POP3
 to negotiate STARTTLS, under this name. <b><br>
 imapp</b> IMAPv4 proxy (default port 143), or <b>tlspr</b>
 speaking IMAP, as above. <b><br>
-smtpp</b> SMTP proxy (default port 25), or <b>tlspr</b>
+smtpp</b> SMTP proxy (default port 587), or <b>tlspr</b>
 speaking SMTP, as above. <b><br>
 ftppr</b> FTP proxy (default port 21), in a build with FTP
 support. Without it the service is known but answers
@@ -168,18 +168,19 @@ interface, depending on the system, so this option may
 require root privileges and can be incompatible with some
 configuration commands like <b>chroot</b> and <b>setuid</b>
 (and <b>daemon</b> if setcap is used). <b><br>
--ni</b><i>PATH</i><b>, -ne</b><i>PATH</i> (Linux only)
-Switch to the network namespace identified by the filesystem
-path <i>PATH</i> (e.g. <i>/var/run/netns/myns</i> or
-<i>/proc/PID/ns/net</i>) for the listening socket
-(<b>-ni</b>) or for outgoing connections (<b>-ne</b>). With
-<b>-ni</b> the current namespace is saved before opening the
-listening socket and restored immediately after binding, so
-that the rest of the process (outgoing connections, child
-threads) runs in the original namespace unless <b>-ne</b> is
-also given. With <b>-ne</b> the process switches to the
-specified namespace after the listening socket is bound (and
-after restoring from <b>-ni</b> if applicable). Requires
+-ni</b><i>PATH</i><b>, -ne</b><i>PATH</i> (Linux only, an
+error on other systems) Switch to the network namespace
+identified by the filesystem path <i>PATH</i> (e.g.
+<i>/var/run/netns/myns</i> or <i>/proc/PID/ns/net</i>) for
+the listening socket (<b>-ni</b>) or for outgoing
+connections (<b>-ne</b>). With <b>-ni</b> the current
+namespace is saved before opening the listening socket and
+restored immediately after binding, so that the rest of the
+process (outgoing connections, child threads) runs in the
+original namespace unless <b>-ne</b> is also given. With
+<b>-ne</b> the process switches to the specified namespace
+after the listening socket is bound (and after restoring
+from <b>-ni</b> if applicable). Requires
 <b>CAP_SYS_ADMIN</b> (or <b>CAP_NET_ADMIN</b> on recent
 kernels) and is incompatible with
 <b>chroot</b>/<b>setuid</b>/<b>daemon</b> if privileges are
@@ -193,6 +194,24 @@ PAT). <b><br>
 3proxy) to report to client for UDPASSOC. By default
 internal address is reported. It&rsquo;s only useful in the
 case of IP-IP NAT (will not work for PAT). <b><br>
+-f</b><i>FORMAT</i> Log format of this service, in the
+syntax of <b>logformat</b>. Without it the service uses the
+<b>logformat</b> in effect where the service is declared.
+<b><br>
+-F</b><i>IP</i> (for dnspr) Answer every A request with the
+IPv4 address <i>IP</i>, and every AAAA request with the IPv6
+address <i>IP</i>, instead of resolving the name. Give
+<b>-F</b> twice, once with each kind of address, to answer
+both. <b><br>
+-T</b> (for proxy) Transparent mode, for a service whose
+clients do not know it is a proxy, e.g. behind a
+redirection. <b>Proxy-Authorization</b> sent by the client
+is not interpreted, <b>Proxy-</b> headers and the connection
+headers of the server&rsquo;s reply are passed on unchanged,
+and the <b>Host</b> header of a request is not compared with
+the destination chosen for the connection. A request with a
+path only, and no host in its URL, is handled as a
+transparent one with or without <b>-T</b>. <b><br>
 -R</b><i>HOST</i><b>:</b><i>port</i> listen on given local
 HOST:port for incoming connections instead of making remote
 outgoing connection. Can be used with another 3proxy service
@@ -221,19 +240,23 @@ proxy-to-client and proxy-to-server sockets, so a reply
 written in several parts is not delayed by Nagle&rsquo;s
 algorithm; use <b>-ocTCP_NODELAY=0</b> or
 <b>-osTCP_NODELAY=0</b> to turn it off, e.g. to send fewer
-packets on slow links. Options like TCP_CORK, TCP_NODELAY,
-TCP_DEFER_ACCEPT, TCP_QUICKACK, TCP_TIMESTAMPS,
+packets on slow links. Options like TCP_CORK, TCP_NOPUSH,
+TCP_NODELAY, TCP_DEFER_ACCEPT, TCP_QUICKACK, TCP_TIMESTAMPS,
 TCP_FASTOPEN, SO_REUSEADDR, SO_REUSEPORT,
 SO_EXCLUSIVEADDRUSE, SO_PORT_SCALABILITY,
-SO_REUSE_UNICASTPORT, SO_KEEPALIVE, SO_DONTROUTE may be
-supported depending on OS. SO_REUSEADDR and SO_REUSEPORT are
-set by default on the listening sockets (<b>-ol</b>,
-<b>-oR</b>) on Unix; <b>-olSO_REUSEPORT=0</b> turns one off.
-On Windows SO_REUSEADDR is not set: it is not required to
-rebind a listening port and it only lets another local
-process bind the same address and port. Use
-SO_EXCLUSIVEADDRUSE (Windows) on the listening socket
-(<b>-ol</b>) to prevent that. <b><br>
+SO_REUSE_UNICASTPORT, SO_KEEPALIVE, SO_DONTROUTE,
+SO_REUSEPORT_LB, IPV6_V6ONLY, IP_BINDANY, IPV6_BINDANY may
+be supported depending on OS. IPV6_V6ONLY decides whether an
+IPv6 socket also takes IPv4: a listener on <b>::</b> is IPv6
+only on FreeBSD and takes both on Linux unless it is set.
+SO_REUSEADDR and SO_REUSEPORT are set by default on the
+listening sockets (<b>-ol</b>, <b>-oR</b>) on Unix;
+<b>-olSO_REUSEPORT=0</b> turns one off. On Windows
+SO_REUSEADDR is not set: it is not required to rebind a
+listening port and it only lets another local process bind
+the same address and port. Use SO_EXCLUSIVEADDRUSE (Windows)
+on the listening socket (<b>-ol</b>) to prevent that.
+<b><br>
 -H</b> (for all services) Expect HAProxy PROXY protocol v1
 header on incoming connection. This allows the proxy to
 receive real client IP address from HAProxy or other load

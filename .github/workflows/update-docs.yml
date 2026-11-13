@@ -29,8 +29,8 @@ jobs:
        echo \<html\>\<title\>3proxy documentation\</title\>\<body\>\<h2\>3proxy documentation\</h2\> >doc/html/index.html
        echo \<a href=\"securityen.html\"\>Security recommendations\</a\>\<br\> >>doc/html/index.html
        echo \<a href=\"highload.html\"\>Optimizing 3proxy for high loads\</a\>\<br\> >>doc/html/index.html
-       echo \<a href=\"howtoe.html\"\>How To \(English, very incomplete\)\</a\>\<br\> >>doc/html/index.html
-       echo \<a href=\"howtor.html\"\>How To \(Russian\)\</a\>\<br\> >>doc/html/index.html
+       echo \<a href=\"howto.en.html\"\>How To \(English, very incomplete\)\</a\>\<br\> >>doc/html/index.html
+       echo \<a href=\"howto.ru.html\"\>How To \(Russian\)\</a\>\<br\> >>doc/html/index.html
        echo \<a href=\"devref.html\"\>Developer reference\</a\>\<br\> >>doc/html/index.html
        echo \<h3\>Man pages:\</h3\> >>doc/html/index.html
        cd man

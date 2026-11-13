@@ -47,6 +47,7 @@
  <li><a href="#ROUNDROBIN">Как организовать балансировку между несколькими каналами</a>
  <li><a href="#CHAIN">Как составлять цепочки прокси</a>
  <li><a href="#BANDLIM">Как ограничивать скорости приема</a>
+ <li><a href="#CONNLIM">Как ограничивать число и частоту соединений</a>
  <li><a href="#TRAFLIM">Как ограничивать объем принимаемого трафика</a>
  <li><a href="#TRAF">Как пофиксить некорректный подсчет трафика</a></li>
  <li><a href="#NSCACHING">Как управлять разрешением имен и кэшированием DNS</a>
@@ -54,6 +55,7 @@
  <li><a href="#CONNBACK">Как использовать connect back</a>
  <li><a href="#HAPROXY">Как использовать протокол HAProxy PROXY</a>
  <li><a href="#MAXSEG">Как установить максимальный размер сегмента TCP (MSS)</a>
+ <li><a href="#OTHERCMDS">Прочие команды конфигурации</a>
  </ul>
  <li><a href="#CLIENT">Конфигурация и настройка клиентов</a>
  <ul>
@@ -1043,6 +1045,30 @@ ssl_nocli
 <p>
 Создаётся HTTPS-прокси (ssl_serv), принимающий TLS-соединения от клиентов. Для соединений с родительским прокси трафик user1 идёт через https родитель с TLS-шифрованием (защищённый тип), а трафик user2 — через обычный socks5 родитель без TLS. Защищённые типы parent прокси: tcps, https, connects, connect+s, socks4s, socks5s, socks4+s, socks5+s, pop3s, smtps, ftps.
 </p>
+<p>
+<b>Прочие команды TLS.</b> Как и команды выше, каждая действует на сервисы, объявленные после неё.
+</p>
+<ul>
+<li><b>ssl_server</b>, <b>ssl_noserver</b>, <b>ssl_client</b>, <b>ssl_noclient</b> - другие названия для ssl_serv, ssl_noserv, ssl_cli и ssl_nocli.
+<li><b>ssl_client_no_verify</b>, <b>ssl_server_no_verify</b> - снова отключают проверку сертификата вышестоящего сервера (ssl_client_verify) и требование клиентского сертификата (ssl_server_verify). Обе проверки по умолчанию отключены.
+<li><b>ssl_client_ca_dir</b> <i>каталог</i>, <b>ssl_client_ca_store</b> <i>хранилище</i> - каталог с CA-сертификатами и хранилище CA (OpenSSL 3.0 и новее), которые использует ssl_client_verify; ssl_client_ca_file задаёт файл CA.
+<li><b>ssl_server_ca_dir</b> <i>каталог</i>, <b>ssl_server_ca_store</b> <i>хранилище</i> - каталог с CA-сертификатами и хранилище CA (OpenSSL 3.0 и новее), которые использует ssl_server_verify для проверки клиентских сертификатов.
+<li><b>ssl_client_ciphersuites</b> <i>список</i>, <b>ssl_server_ciphersuites</b> <i>список</i> - наборы шифров для TLS 1.3, в сторону вышестоящего сервера и в сторону клиентов.
+<li><b>ssl_client_cipher_list</b> <i>список</i>, <b>ssl_server_cipher_list</b> <i>список</i> - шифры для TLS 1.2 и старше.
+<li><b>ssl_client_min_proto_version</b>, <b>ssl_client_max_proto_version</b>, <b>ssl_server_min_proto_version</b>, <b>ssl_server_max_proto_version</b> <i>версия</i> - наименьшая и наибольшая используемая версия TLS, например TLSv1.2.
+<li><b>ssl_client_sni</b> <i>имя</i> - имя хоста, отправляемое вышестоящему серверу в качестве SNI.
+<li><b>ssl_client_alpn</b> <i>протокол</i> [<i>протокол</i> ...] - протоколы ALPN, предлагаемые вышестоящему серверу.
+<li><b>ssl_certcache</b> <i>каталог</i> - каталог, где хранятся сертификаты, созданные для MITM.
+</ul>
+<p>
+Например, прокси, отказывающий клиентам, которые предлагают только TLS 1.2 или старше:
+</p><pre>
+ssl_server_cert /etc/3proxy/certs/server.crt
+ssl_server_key /etc/3proxy/certs/server.key
+ssl_server_min_proto_version TLSv1.3
+ssl_serv
+proxy -p3128
+</pre>
  <li><a name="CERTIFICATES"><i>Как создать CA и сертификаты для SSL</i></a>
 <p>
 <b>Создание удостоверяющего центра (CA):</b>
@@ -1939,6 +1965,29 @@ socks -p1080
   bandlimin 57600 * 192.168.10.16/32</pre>
  разрешает клиентам неограниченный по скорости доступ по протоколу POP3.
  </p>
+ <li><a name="CONNLIM"><i>Как ограничивать число и частоту соединений</i></a>
+ <p>
+  <pre>
+  connlim &lt;rate&gt; &lt;period&gt; &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
+  noconnlim &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;</pre>
+ <p>
+ connlim ограничивает соединения, попадающие под действие ACL. Как и фильтры ширины канала, команда действует на все
+ сервисы, а параметры после period такие же, как у bandlimin. period - период в секундах. Если period равен 0,
+ rate - число соединений, которые могут быть открыты одновременно, иначе - число соединений, разрешённых за этот
+ период. Соединения сверх лимита отклоняются.
+  <pre>
+  connlim 100 60 * 127.0.0.1</pre>
+ разрешает 127.0.0.1 100 соединений в минуту,
+  <pre>
+  connlim 20 0 * 127.0.0.1</pre>
+ разрешает 127.0.0.1 20 одновременных соединений.
+ <p>
+ Как и в случае с bandlimin, отдельный лимит для каждого клиента требует отдельного правила для каждого клиента.
+ noconnlim задаёт исключение; его надо указывать перед ограничением, для которого делается исключение:
+  <pre>
+  noconnlim * 127.0.0.1
+  connlim 1 60 * *</pre>
+ </p>
  <li><a name="TRAFLIM"><i>Как ограничивать объем принимаемого трафика</i></a>
  <p>
   <pre>
@@ -1946,9 +1995,11 @@ socks -p1080
   countin &lt;number&gt; &lt;type&gt; &lt;amount&gt; &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
   nocountin &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;</pre>
  countout &lt;number&gt; &lt;type&gt; &lt;amount&gt; &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
- nocountout &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;</pre>
+ nocountout &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
+ countall &lt;number&gt; &lt;type&gt; &lt;amount&gt; &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
+ nocountall &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;</pre>
  <p>
- Команды позволяют установить лимит трафика на день, неделю или месяц.
+ Команды позволяют установить лимит трафика на час, день, неделю, месяц или год.
  Сведения о трафике постоянно сохраняются в двоичном файле, указываемом
  командой counter, что делает подсчет трафика независимым от
  перезагрузки прокси. Можно управлять двоичным файлом, используя утилиту
@@ -1962,9 +2013,13 @@ socks -p1080
  потребленному трафику.
  <br>
  type - тип ограничения или частота создания файлов отчета.
- D (На день), W (на неделю) или M (на месяц).
+ H (на час), D (на день), W (на неделю), M (на месяц), Y (на год) или N (без сброса).
  <br>
  amount - объем трафика на указанный период в мегабайтах.
+ </p>
+ <p>
+ countin считает трафик, полученный от серверов, countout - трафик, отправленный им. countall считает оба направления
+ в одном счётчике, с одним лимитом, а nocountall задаёт для него исключения.
  </p>
  <li><a name="TRAF">Как пофиксить некорректный подсчет трафика</a>
  <p>
@@ -2090,7 +2145,7 @@ proxy
  сетевых условиях:
   </p><pre>
 maxseg 1400
-proxy -p3128 -OcTCP_NODELAY,TCP_MAXSEG -OsTCP_NODELAY,TCP_MAXSEG
+proxy -p3128 -ocTCP_NODELAY,TCP_MAXSEG -osTCP_NODELAY,TCP_MAXSEG
 </pre>
  <p>
  Значение указывается в байтах. Эта настройка использует опцию сокета TCP_MAXSEG
@@ -2098,6 +2153,23 @@ proxy -p3128 -OcTCP_NODELAY,TCP_MAXSEG -OsTCP_NODELAY,TCP_MAXSEG
  уменьшение MSS для избежания фрагментации в VPN туннелях или для обхода проблем
  с MTU на определённых сетевых путях.
  </p>
+ <li><a name="OTHERCMDS"><i>Прочие команды конфигурации</i></a>
+ <p>
+ Команды, для которых нет отдельного раздела выше:
+ </p>
+ <ul>
+ <li><b>pidfile</b> <i>имя_файла</i> - записывает в файл идентификатор процесса 3proxy в момент чтения строки, поэтому указывайте её после <b>daemon</b>. В Unix процессом можно управлять сигналами: SIGUSR1 перечитывает конфигурацию, SIGTERM закрывает соединения и завершает работу. Первый SIGCONT прекращает приём новых соединений, второй - перечитывает конфигурацию и снова начинает принимать соединения.
+ <li><b>nolog</b> - расширяет последнюю команду allow или deny так, что соединения, попавшие под неё, не журналируются:
+ <pre>
+allow * * 192.168.1.1
+nolog
+ </pre>
+ <li><b>filtermaxsize</b> <i>байт</i> - содержимое длиннее этого значения не передаётся через фильтрующие плагины, чтобы не повредить данные и не изменить Content-Length. По умолчанию 1048576 (1 МБ); 0 отключает проверку.
+ <li><b>delimchar</b> <i>символ</i> - символ, отделяющий имя пользователя от имени хоста в имени пользователя для таких прокси, как FTP и POP3. По умолчанию @; <b>delimchar #</b> позволяет использовать @ в именах пользователей.
+ <li><b>authnserver</b> <i>адрес</i>[:<i>порт</i>][/tcp] - сервер имён для аутентификации по DNS (<b>auth dnsname</b>). Если не указан, используется <b>nserver</b>. Синтаксис как у nserver.
+ <li><b>parentretries</b> <i>число</i> - число попыток связаться с родительским прокси. По умолчанию 2. Каждая попытка снова выбирает родителя, исключая тех, с которыми уже не удалось, поэтому это и число разных родителей, через которых может быть сделана попытка обработать запрос.
+ <li><b>dialer</b> <i>команда</i> - команда, которая запускается, когда имя хоста не удаётся разрешить, чтобы установить коммутируемое соединение; после этого имя разрешается ещё раз.
+ </ul>
 </ul>
 <hr>
 <li><a name="CLIENT"><b>Конфигурация клиентов</b></a>

@@ -47,6 +47,7 @@
  <li><A HREF="#ROUNDROBIN">How to balance traffic between multiple external channels?</a>
  <li><A HREF="#CHAIN">How to manage proxy chains</a>
  <li><A HREF="#BANDLIM">How to limit bandwidth</a>
+ <li><A HREF="#CONNLIM">How to limit the number or rate of connections</a>
  <li><A HREF="#TRAFLIM">How to limit traffic amount</a>
  <li><a href="#TRAF">How to fix incorrect traffic accounting</a>
  <li><A HREF="#NETLIST">How to build network lists</a>
@@ -55,6 +56,7 @@
  <li><a href="#CONNBACK">How to use connect back</a>
  <li><a href="#HAPROXY">How to use HAProxy PROXY protocol</a>
  <li><a href="#MAXSEG">How to set TCP maximum segment size (MSS)</a>
+ <li><a href="#OTHERCMDS">Other configuration commands</a>
  </ul>
  <li><A HREF="#CLIENT">Client configuration</a>
  <li><A HREF="#ADMIN">Administering and information analysis</a>
@@ -1034,6 +1036,30 @@ ssl_nocli
 <p>
 This creates an HTTPS proxy (ssl_serv) that accepts TLS connections from clients. For parent proxy connections, user1's traffic goes through an https parent with TLS encryption (secure type), while user2's traffic goes through a regular socks5 parent without TLS. Secure parent types include: tcps, https, connects, connect+s, socks4s, socks5s, socks4+s, socks5+s, pop3s, smtps, ftps.
 </p>
+<p>
+<b>Further TLS commands.</b> Like the commands above, each applies to the services declared after it.
+</p>
+<ul>
+<li><b>ssl_server</b>, <b>ssl_noserver</b>, <b>ssl_client</b>, <b>ssl_noclient</b> - other names for ssl_serv, ssl_noserv, ssl_cli and ssl_nocli.
+<li><b>ssl_client_no_verify</b>, <b>ssl_server_no_verify</b> - turn off again the check of the upstream server certificate (ssl_client_verify) and the requirement of a client certificate (ssl_server_verify). Both are off by default.
+<li><b>ssl_client_ca_dir</b> <i>directory</i>, <b>ssl_client_ca_store</b> <i>store</i> - a directory of CA certificates and a CA store (OpenSSL 3.0 and later) used by ssl_client_verify, where ssl_client_ca_file names a CA file.
+<li><b>ssl_server_ca_dir</b> <i>directory</i>, <b>ssl_server_ca_store</b> <i>store</i> - a directory of CA certificates and a CA store (OpenSSL 3.0 and later) used by ssl_server_verify to check client certificates.
+<li><b>ssl_client_ciphersuites</b> <i>list</i>, <b>ssl_server_ciphersuites</b> <i>list</i> - the cipher suites for TLS 1.3, towards the upstream server and towards clients.
+<li><b>ssl_client_cipher_list</b> <i>list</i>, <b>ssl_server_cipher_list</b> <i>list</i> - the ciphers for TLS 1.2 and older.
+<li><b>ssl_client_min_proto_version</b>, <b>ssl_client_max_proto_version</b>, <b>ssl_server_min_proto_version</b>, <b>ssl_server_max_proto_version</b> <i>version</i> - the lowest and the highest TLS version to use, for example TLSv1.2.
+<li><b>ssl_client_sni</b> <i>hostname</i> - the host name sent to the upstream server as SNI.
+<li><b>ssl_client_alpn</b> <i>protocol</i> [<i>protocol</i> ...] - the ALPN protocols offered to the upstream server.
+<li><b>ssl_certcache</b> <i>directory</i> - where the certificates generated for MITM are cached.
+</ul>
+<p>
+For example, a proxy which refuses clients offering only TLS 1.2 or older:
+</p><pre>
+ssl_server_cert /etc/3proxy/certs/server.crt
+ssl_server_key /etc/3proxy/certs/server.key
+ssl_server_min_proto_version TLSv1.3
+ssl_serv
+proxy -p3128
+</pre>
  <li><a name="CERTIFICATES"><i>How to create CA and certificates for SSL</i></a>
 <p>
 <b>Creating a Certificate Authority (CA):</b>
@@ -1915,6 +1941,35 @@ In this example:
 mail traffic from POP3 servers bypasses the pipe and has no bandwidth
 limitation.
 </p>
+ <li><A NAME="CONNLIM">How to limit the number or rate of connections</a>
+<p>
+<p><font face="courier">
+connlim &lt;rate&gt; &lt;period&gt; &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
+<br>noconnlim &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
+</font>
+</p>
+<p>
+connlim limits the connections of the traffic the ACL describes. Like the bandwidth filters it applies to all
+services, and the arguments after the period are the same as with bandlimin. The period is in seconds. With a
+period of 0 the rate is the number of connections which may be open at the same time, with any other period it is
+the number of connections allowed within that period. Connections over the limit are refused.
+<pre>
+  connlim 100 60 * 127.0.0.1
+</pre>
+allows 100 connections per minute for 127.0.0.1.
+<pre>
+  connlim 20 0 * 127.0.0.1
+</pre>
+allows 20 simultaneous connections for 127.0.0.1.
+</p>
+<p>
+As with bandlimin, a limit for each client of its own takes a rule for every client. noconnlim adds an exception;
+put it before the limit it makes an exception to:
+<pre>
+  noconnlim * 127.0.0.1
+  connlim 1 60 * *
+</pre>
+</p>
  <li><A NAME="TRAFLIM">How to limit traffic amount</a>
 <p>
 <p><font face="courier">
@@ -1923,16 +1978,22 @@ counter &lt;filename&gt; &lt;type&gt; &lt;reportpath&gt;
 <br>nocountin &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
 <br>countout &lt;number&gt; &lt;type&gt; &lt;amount&gt; &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
 <br>nocountout &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
+<br>countall &lt;number&gt; &lt;type&gt; &lt;amount&gt; &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
+<br>nocountall &lt;userlist&gt; &lt;sourcelist&gt; &lt;targetlist&gt; &lt;targetportlist&gt; &lt;commandlist&gt;
 </font>
 </p>
 <p>
-You can set a traffic limit per day (D), week (W), month (M), year (Y), or
-absolute ('N'), as specified by the 'type' argument of the counterin command.
+You can set a traffic limit per hour (H), day (D), week (W), month (M), year (Y), or
+absolute ('N'), as specified by the 'type' argument of the countin command.
 Traffic information is stored in a binary file specified by the 'filename' argument.
 The countersutil utility can be used to manage this file.
 The reportpath specifies the location of text reports; the type parameter of the 'counter'
 command controls how often text reports are created. The amount is the amount of
 allowed traffic in megabytes (MB). nocountin allows you to set exclusions.
+</p>
+<p>
+countin counts the traffic received from the servers and countout the traffic sent to them. countall counts both
+in one counter, against one limit, and nocountall sets exclusions for it.
 </p>
  <li><a name="TRAF"><i>How to fix incorrect traffic accounting</i></a>
 
@@ -2040,7 +2101,7 @@ proxy
  issues or to optimize traffic for specific network conditions:
   </p><pre>
 maxseg 1400
-proxy -p3128 -OcTCP_NODELAY,TCP_MAXSEG -OsTCP_NODELAY,TCP_MAXSEG
+proxy -p3128 -ocTCP_NODELAY,TCP_MAXSEG -osTCP_NODELAY,TCP_MAXSEG
 </pre>
  <p>
  The value is specified in bytes. This setting uses the TCP_MAXSEG socket option
@@ -2048,6 +2109,23 @@ proxy -p3128 -OcTCP_NODELAY,TCP_MAXSEG -OsTCP_NODELAY,TCP_MAXSEG
  to avoid fragmentation in VPN tunnels or to work around MTU issues with certain
  network paths.
  </p>
+ <li><a name="OTHERCMDS"><i>Other configuration commands</i></a>
+ <p>
+ Commands which have no section of their own above:
+ </p>
+ <ul>
+ <li><b>pidfile</b> <i>filename</i> - writes the process id of 3proxy to the file when the line is read, so give it after <b>daemon</b>. Under Unix the process can then be managed with signals: SIGUSR1 re-reads the configuration, SIGTERM closes the connections and exits. SIGCONT stops accepting new connections the first time it is sent, and the second time re-reads the configuration and starts accepting again.
+ <li><b>nolog</b> - extends the last allow or deny line so that the connections it matches are not logged:
+ <pre>
+allow * * 192.168.1.1
+nolog
+ </pre>
+ <li><b>filtermaxsize</b> <i>bytes</i> - content longer than this is not passed through the filtering plugins, to avoid corrupting data or changing the Content-Length. The default is 1048576 (1 MB); 0 turns the check off.
+ <li><b>delimchar</b> <i>character</i> - the character which separates the user name from the host name in the user name given to proxies such as FTP and POP3. The default is @; <b>delimchar #</b> lets user names contain @.
+ <li><b>authnserver</b> <i>address</i>[:<i>port</i>][/tcp] - the name server for DNS-based authentication (<b>auth dnsname</b>). Without it <b>nserver</b> is used. The syntax is that of nserver.
+ <li><b>parentretries</b> <i>number</i> - the number of attempts to reach a parent proxy. The default is 2. Each attempt picks a parent again, leaving out those which have failed, so it is also the number of different parents a request may be tried through.
+ <li><b>dialer</b> <i>command</i> - a command to run when a host name cannot be resolved, to bring up a dial-up connection; the name is then resolved once more.
+ </ul>
  </ul>
 
 <hr>
