@@ -609,9 +609,11 @@ static int srvprepare(struct srvstart *s, int argc, char **argv){
 			if(argv[i][2] == 'i') { if(srv->inetns) free(srv->inetns); srv->inetns = strdup(argv[i] + 3); }
 			else if(argv[i][2] == 'e') { if(srv->onetns) free(srv->onetns); srv->onetns = strdup(argv[i] + 3); }
 #else
-			/* Network namespaces are a Linux feature. Ignoring the option would run
-			   the service in the host's network stack without a word. */
-			error = 1;
+			/* Network namespaces are a Linux feature. Ignoring -ni or -ne would run
+			   the service in the host's network stack without a word. A bare -n,
+			   which the sample configuration still has, does nothing and is left
+			   alone. */
+			if(argv[i][2] == 'i' || argv[i][2] == 'e') error = 1;
 #endif
 			break;
 		 case 'p':
