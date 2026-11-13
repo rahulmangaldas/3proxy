@@ -7,15 +7,19 @@
 BUILDDIR = ../bin/
 PREFIX ?= 3proxy_
 CRYPT_PREFIX ?= $(PREFIX)
-MANDIR ?= /usr/share/man
+MANDIR ?= $(prefix)/share/man
 CC ?= cc
+# Packages (pkg install wolfssl pcre2 ...) install under LOCALBASE, which the
+# compiler does not search by itself: without it the feature probes below
+# fail quietly and the binary is built without those libraries.
+LOCALBASE ?= /usr/local
 
 CFLAGS ?= -O3 -flto
-CFLAGS += -c -fno-strict-aliasing -DFD_SETSIZE=4096 -DWITH_POLL -DWITH_UN
-COUT = -o 
+CFLAGS += -c -fno-strict-aliasing -DFD_SETSIZE=4096 -DWITH_POLL -DWITH_UN -I$(LOCALBASE)/include
+COUT = -o
 LN ?= ${CC}
 LDFLAGS ?= -O3 -flto
-LDFLAGS += -pthread -fno-strict-aliasing
+LDFLAGS += -pthread -fno-strict-aliasing -L$(LOCALBASE)/lib
 # Use EXTRA_CFLAGS/EXTRA_LDFLAGS to add flags from the make command line.
 # Setting CFLAGS or LDFLAGS there instead overrides every assignment in this
 # makefile, including the += above and the STATIC/LIBSTATIC handling below.
@@ -146,4 +150,4 @@ install: all
 	echo Run $(BINPREFIX)/add3proxyuser to add \'admin\' user
 
 allplugins:
-	@list='$(PLUGINS)'; for p in $$list; do cp Makefile Makefile.var plugins/$$p; cd plugins/$$p ; make ;	cd ../.. ; done
+	@list='$(PLUGINS)'; for p in $$list; do cp Makefile Makefile.var plugins/$$p; cd plugins/$$p ; $(MAKE) ;	cd ../.. ; done

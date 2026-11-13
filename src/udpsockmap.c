@@ -121,6 +121,16 @@ int udpbind(struct clientparam *param)
 	fcntl(s, F_SETFL, O_NONBLOCK | fcntl(s, F_GETFL));
 #endif
 	param->remsock = s;
+#if !defined(NOIPV6) && defined(IPV6_V6ONLY)
+	/* Same as the TCP socket in doconnect(): an IPv4 destination reached
+	   with -6 is IPv4-mapped, which sendto() refuses (EINVAL) on an
+	   IPv6-only socket, FreeBSD's default. */
+	if (*SAFAMILY(&param->sinsl) == AF_INET6) {
+		int zero = 0;
+
+		param->srv->so._setsockopt(param->sostate, param->remsock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&zero, sizeof(zero));
+	}
+#endif
 	if (extbindtodevice(param, param->remsock)) {
 		param->srv->so._closesocket(param->sostate, param->remsock);
 		param->remsock = INVALID_SOCKET;

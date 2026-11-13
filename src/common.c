@@ -761,6 +761,18 @@ int doconnect(struct clientparam * param){
 #endif
 	    IPPROTO_TCP
 	)) == INVALID_SOCKET) {return (11);}
+#if !defined(NOIPV6) && defined(IPV6_V6ONLY)
+	/* An IPv4 destination reached with -6 is an IPv4-mapped IPv6 address,
+	   which an IPv6 socket takes only when it is not IPv6-only. Linux
+	   defaults to that; FreeBSD (pfSense) defaults to IPv6-only, and connect()
+	   fails with EINVAL. Asked for before the service's own socket options,
+	   so those may still change it. */
+	if(*SAFAMILY(&param->sinsr) == AF_INET6){
+		int zero = 0;
+
+		param->srv->so._setsockopt(param->sostate, param->remsock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&zero, sizeof(zero));
+	}
+#endif
 	if(SAISNULL(&param->sinsl)){
 #ifdef WITH_UN
 	    if(*SAFAMILY(&param->sinsr) == AF_UNIX) param->sinsl = param->sinsr;
@@ -798,6 +810,16 @@ int doconnect(struct clientparam * param){
 #endif
 #ifdef WITH_UN
 	if(*SAFAMILY(&param->sinsl) != AF_UNIX)
+#endif
+#ifndef IP_BIND_ADDRESS_NO_PORT
+	/* Without that option (FreeBSD has none) a bind() to port 0 takes a
+	   port of its own before the destination is known, and the number of
+	   connections in use or in TIME_WAIT, to any destination, is limited by
+	   the ephemeral range. A connection which asks for neither an address
+	   nor a port gets the same from connect(), which chooses the port for the
+	   pair with the destination, so it is not bound at all. */
+	if(!((param->operation >= 256 || (param->operation & CONNECT) || param->redirected)
+	     && !param->extport && SAISNULL(&param->sinsl)))
 #endif
 	if(bindrange(param, param->remsock, &param->sinsl, param->extport, &tries)==-1) {
 		return 12;

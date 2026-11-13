@@ -47,6 +47,22 @@ static int transparent_mode = TRANSPARENT_AUTO;
 #ifdef WITH_PF
 static int pf_device = -1;
 
+/* /dev/pf can only be opened by root on FreeBSD (and so pfSense), and the
+   first redirected connection comes after setuid and chroot have taken that
+   away. The device is opened when the module is installed, before the
+   configuration runs, and the descriptor is kept for the life of the process:
+   a reload does not need to open it again.
+ */
+static void transparent_pf_open(void)
+{
+	if(pf_device >= 0) return;
+	pf_device = open("/dev/pf", O_RDONLY
+#ifdef O_CLOEXEC
+		| O_CLOEXEC
+#endif
+	);
+}
+
 /* Ask the packet filter what the connection was addressed to before it was
    redirected. pf keeps that in its state table rather than on the socket,
    so it has to be looked up with the addresses of both ends.
@@ -55,10 +71,10 @@ static int transparent_pf(struct clientparam *param)
 {
 	struct pfioc_natlook nl;
 
-	if(pf_device < 0){
-		pf_device = open("/dev/pf", O_RDONLY);
-		if(pf_device < 0) return 1;
-	}
+	/* Normally already open: see transparent_pf_open(). This is only a
+	   retry for a device that was not there at start. */
+	if(pf_device < 0) transparent_pf_open();
+	if(pf_device < 0) return 1;
 	memset(&nl, 0, sizeof(nl));
 	nl.proto = IPPROTO_TCP;
 	nl.direction = PF_OUT;
@@ -226,6 +242,9 @@ int h_notransparent(int argc, unsigned char **argv){
 
 void transparent_install(void){
 	pl = &pluginlink;
+#ifdef WITH_PF
+	transparent_pf_open();
+#endif
 	/* A reload runs this again: the filter is a single static entry, so it
 	   is only linked in once, and the commands decide whether it acts. */
 	if(!transparent_loaded){

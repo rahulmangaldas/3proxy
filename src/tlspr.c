@@ -335,6 +335,7 @@ void * tlsprchild(struct clientparam* param) {
  int lv=-1;
  char proto[PROTOLEN]="-";
  int snipos = 0;
+ int splitlen = 0;
  PROXYSERVICE stlsproto = param->clientstarttls? param->clientstarttls :
 	(param->starttls? param->starttls : param->srv->srvstarttls);
 
@@ -358,16 +359,9 @@ void * tlsprchild(struct clientparam* param) {
 	}
 	else if (parsehostname(sni, param, param->srv->targetport? ntohs(param->srv->targetport):starttlsport(stlsproto))) RETURN (100);
 	if (!param->hostname)param->hostname = (unsigned char *)strdup(sni);
-	if(param->srv->s_option && snipos && res > 1){
-	    int len;
-	    
-	    len = socksend(param, param->remsock, param->clibuf+param->clioffset,snipos + (res/2), conf.timeouts[STRING_S]);
-	    if(len != snipos + (res/2)){
-		RETURN(310);
-	    }
-	    param->clioffset += snipos + (res/2);
-
-	}
+	/* The first part of the ClientHello goes out once the connection to the
+	   server is made, below: remsock does not exist yet. */
+	if(param->srv->s_option && snipos && res > 1) splitlen = snipos + (res/2);
     }
     else if (res < 0 && param->srv->requirecert) RETURN(310-res);
  }
@@ -393,6 +387,13 @@ void * tlsprchild(struct clientparam* param) {
 	socksend(param, param->clisock, (unsigned char *)"\x15\x03\x01\x00\x02\x02\x28", 7, conf.timeouts[STRING_S]);
 	RETURN(360+res);
     }
+ }
+
+ if(splitlen){
+    int len = socksend(param, param->remsock, param->clibuf+param->clioffset, splitlen, conf.timeouts[STRING_S]);
+
+    if(len != splitlen) RETURN(310);
+    param->clioffset += splitlen;
  }
 
  if(param->srv->requirecert > 1){

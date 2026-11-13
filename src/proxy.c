@@ -9,6 +9,15 @@
 
 #include "proxy.h"
 
+/* Hold the request back until it has been written whole. TCP_CORK on Linux;
+   on FreeBSD (and so pfSense) TCP_NOPUSH does the same and clearing it
+   sends what was held. Elsewhere the request goes out as written. */
+#if defined(TCP_CORK)
+#define PROXY_TCP_CORK TCP_CORK
+#elif defined(__FreeBSD__) && defined(TCP_NOPUSH)
+#define PROXY_TCP_CORK TCP_NOPUSH
+#endif
+
 #define RETURN(xxx) { param->res = xxx; goto CLEANRET; }
 
 char * proxy_stringtable[] = {
@@ -1020,9 +1029,9 @@ for(;;){
  }
 
  else {
-#ifdef TCP_CORK
+#ifdef PROXY_TCP_CORK
 	int opt = 1;
-	param->srv->so._setsockopt(param->sostate, param->remsock, IPPROTO_TCP, TCP_CORK, (unsigned char *)&opt, sizeof(int));
+	param->srv->so._setsockopt(param->sostate, param->remsock, IPPROTO_TCP, PROXY_TCP_CORK, (unsigned char *)&opt, sizeof(int));
 #endif
 	 redirect = 1;
 	 res = (int)strlen((char *)req);
@@ -1074,10 +1083,10 @@ for(;;){
 	RETURN(518);
  }
  }
-#ifdef TCP_CORK
+#ifdef PROXY_TCP_CORK
  {
 	int opt = 0;
-	param->srv->so._setsockopt(param->sostate, param->remsock, IPPROTO_TCP, TCP_CORK, (unsigned char *)&opt, sizeof(int));
+	param->srv->so._setsockopt(param->sostate, param->remsock, IPPROTO_TCP, PROXY_TCP_CORK, (unsigned char *)&opt, sizeof(int));
  }
 #endif
  param->statscli64 += res;

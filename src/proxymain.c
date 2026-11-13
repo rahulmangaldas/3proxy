@@ -172,6 +172,9 @@ struct socketoptions sockopts[] = {
 #ifdef TCP_CORK
 	{TCP_CORK, "TCP_CORK"},
 #endif
+#ifdef TCP_NOPUSH
+	{TCP_NOPUSH, "TCP_NOPUSH"},
+#endif
 #ifdef TCP_DEFER_ACCEPT
 	{TCP_DEFER_ACCEPT, "TCP_DEFER_ACCEPT"},
 #endif
